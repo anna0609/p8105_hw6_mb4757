@@ -99,5 +99,123 @@ models_results_df %>%
 
 ## Problem 2
 
+data cleaning
+```{r}
+baby_df = 
+  read_csv("./data/birthweight.csv") %>% 
+  mutate(
+    babysex = as.factor(babysex),
+    frace = as.factor(frace),
+    mrace = as.factor(mrace),
+    malform = as.factor(malform)
+  ) %>%
+  relocate(bwt)
+```
+
+first model:
+```{r}
+selcted_mod = step(lm(bwt ~ ., data = baby_df),direction="backward") 
+broom::tidy(selcted_mod)
+
+fit1 = lm(bwt ~ babysex + bhead + blength + delwt + gaweeks + mheight + mrace + parity + ppwt + smoken, data = baby_df)
+broom::tidy(fit1)
+```
+
+I choose backward stepwise regression to build the model since it is an appropriate analysis when we have many variables and we are interested in identifying a useful subset of the predictors. Backward stepwise regression begins with a full (saturated) model and at each step gradually eliminates variables from the regression model to find a reduced model that best explains the data.
+
+
+After backward stepwise regression, we have a basic model with significant variables. However, the variable fincome has a p-value = 0.0688 < 0.05. I decide to eliminate this insignificant variable. Finally, this is my model fit1 = bwt ~ babysex + bhead + blength + delwt + gaweeks + mheight + mrace + parity + ppwt + smoken. 
+
+
+model diagnostics:
+```{r}
+baby_df %>% 
+  modelr::add_residuals(fit1) %>% 
+  modelr::add_predictions(fit1) %>% 
+  ggplot(aes(x = pred, y = resid)) + 
+  geom_point() +
+  xlab("prediction values") +
+  ylab("residuals") +
+  ggtitle("residuals against fitted values plot") +
+  xlim(-1500, 5000)+
+  ylim(-1500, 3000)+
+  geom_abline(intercept = 0, slope = 0, color = "red")
+```
+From the residual and prediction values plot, we can see that
+(1) they’re pretty symmetrically distributed, tending to cluster towards the middle of the plot.
+(2) they’re clustered around the lower single digits of the y = 0.
+(3) they're random spread, and there aren’t any clear patterns.
+
+
+second model:
+```{r}
+fit2 = lm(bwt ~ blength + gaweeks, data = baby_df)
+
+broom::tidy(fit2)
+```
+
+third model:
+```{r}
+fit3 = lm(bwt ~ bhead * blength * babysex, data = baby_df)
+broom::tidy(fit3)
+```
+
+Make comparison:
+```{r}
+cv_df = 
+  crossv_mc(baby_df, 100)
+
+cv_df %>% pull(train) %>% .[[1]] %>% as_tibble()
+cv_df %>% pull(test) %>% .[[1]] %>% as_tibble()
+
+cv_df =
+  cv_df %>% 
+  mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble)
+  )
+
+
+cv_df = 
+cv_df %>% 
+  mutate(
+    fit1_mod = map(.x = train, ~lm(bwt ~ babysex + bhead + blength + delwt + gaweeks + mheight + mrace + parity + ppwt + smoken, data = .x)),
+    fit2_mod = map(.x = train, ~lm(bwt ~ blength + gaweeks, data = .x)),
+    fit3_mod = map(.x = train, ~lm(bwt ~ babysex*bhead*blength, data = .x))) %>% 
+  mutate(
+    rmse_fit1 = map2_dbl(.x = fit1_mod, .y = test, ~rmse(model = .x, data = .y)),
+    rmse_fit2 = map2_dbl(.x = fit2_mod, .y = test, ~rmse(model = .x, data = .y)),
+    rmse_fit3 = map2_dbl(.x = fit3_mod, .y = test, ~rmse(model = .x, data = .y)))
+```
+
+
+```{r}
+cv_df %>% 
+  select(starts_with("rmse")) %>% 
+  pivot_longer(
+    everything(),
+    names_to = "model",
+    values_to = "rmse",
+    names_prefix = "rmse_" #delete rmse_ for names
+  ) %>% 
+  ggplot(aes(x = model, y = rmse)) +
+  geom_violin()
+```
+
+```{r}
+cv_df %>% 
+  select(starts_with("rmse")) %>% 
+  pivot_longer(
+    everything(),
+    names_to = "model",
+    values_to = "rmse",
+    names_prefix = "rmse_" #delete rmse_ for names
+  ) %>% 
+  group_by(model) %>% 
+  summarize(avg_rmse = mean(rmse))
+```
+
+After comparing the three models by average rmse and violin plots of rmse, we can see that fit1 model has the smallest average rmse. Therefore, this is the optimal model among these three models.
+
 
 ## Problem 3
