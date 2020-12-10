@@ -119,6 +119,7 @@ broom::tidy(selcted_mod)
 
 fit1 = lm(bwt ~ babysex + bhead + blength + delwt + gaweeks + mheight + mrace + parity + ppwt + smoken, data = baby_df)
 broom::tidy(fit1)
+anova(fit1)
 ```
 
 I choose backward stepwise regression to build the model since it is an appropriate analysis when we have many variables and we are interested in identifying a useful subset of the predictors. Backward stepwise regression begins with a full (saturated) model and at each step gradually eliminates variables from the regression model to find a reduced model that best explains the data.
